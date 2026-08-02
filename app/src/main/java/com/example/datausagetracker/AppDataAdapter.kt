@@ -1,6 +1,6 @@
-package com.example.datausagetracker
-
+herepackage com.example.datausagetracker
 import android.content.Context
+import android.text.format.Formatter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -8,55 +8,41 @@ import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
-import java.text.DecimalFormat
 
 class AppDataAdapter(
     context: Context,
-    private val appDataList: List<AppData>
-) : ArrayAdapter<AppData>(context, 0, appDataList) {
+    private val appList: List<AppData>
+) : ArrayAdapter<AppData>(context, 0, appList) {
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         val view = convertView ?: LayoutInflater.from(context).inflate(
-            R.layout.app_data_item,
-            parent,
-            false
+            R.layout.app_data_item, parent, false
         )
 
-        val appData = appDataList[position]
+        val item = getItem(position) ?: return view
 
-        val appIcon = view.findViewById<ImageView>(R.id.appIcon)
-        val appName = view.findViewById<TextView>(R.id.appName)
-        val dataUsage = view.findViewById<TextView>(R.id.dataUsage)
-        val mobileData = view.findViewById<TextView>(R.id.mobileData)
-        val wifiData = view.findViewById<TextView>(R.id.wifiData)
-        val progressBar = view.findViewById<ProgressBar>(R.id.usageProgress)
+        val appIconView = view.findViewById<ImageView>(R.id.appIcon)
+        val appNameView = view.findViewById<TextView>(R.id.appName)
+        val dataUsageView = view.findViewById<TextView>(R.id.dataUsage)
+        val mobileDataView = view.findViewById<TextView>(R.id.mobileData)
+        val wifiDataView = view.findViewById<TextView>(R.id.wifiData)
+        val usageProgressBar = view.findViewById<ProgressBar>(R.id.usageProgress)
 
-        appIcon.setImageDrawable(appData.appIcon)
-        appName.text = appData.appName
-
-        val totalUsage = appData.mobileDataUsage + appData.wifiDataUsage
-        dataUsage.text = formatBytes(totalUsage)
-        mobileData.text = "📱 ${formatBytes(appData.mobileDataUsage)}"
-        wifiData.text = "📶 ${formatBytes(appData.wifiDataUsage)}"
-
-        // Calculate progress (relative to max app usage in list)
-        val maxUsage = appDataList.maxOfOrNull { it.mobileDataUsage + it.wifiDataUsage } ?: 1L
-        progressBar.progress = ((totalUsage.toFloat() / maxUsage) * 100).toInt()
-
-        return view
-    }
-
-    private fun formatBytes(bytes: Long): String {
-        val units = arrayOf("B", "KB", "MB", "GB")
-        var size = bytes.toDouble()
-        var unitIndex = 0
-
-        while (size >= 1024 && unitIndex < units.size - 1) {
-            size /= 1024
-            unitIndex++
+        appNameView.text = item.appName
+        if (item.appIcon != null) {
+            appIconView.setImageDrawable(item.appIcon)
+        } else {
+            appIconView.setImageResource(android.R.drawable.sym_def_app_icon)
         }
 
-        val df = DecimalFormat("#.##")
-        return "${df.format(size)} ${units[unitIndex]}"
+        dataUsageView.text = Formatter.formatShortFileSize(context, item.totalDataBytes)
+        mobileDataView.text = "Mobile: " + Formatter.formatShortFileSize(context, item.mobileDataBytes)
+        wifiDataView.text = "Wi-Fi: " + Formatter.formatShortFileSize(context, item.wifiDataBytes)
+
+        val maxUsage = appList.maxOfOrNull { it.totalDataBytes } ?: 1L
+        val progress = if (maxUsage > 0) ((item.totalDataBytes * 100) / maxUsage).toInt() else 0
+        usageProgressBar.progress = progress
+
+        return view
     }
 }
