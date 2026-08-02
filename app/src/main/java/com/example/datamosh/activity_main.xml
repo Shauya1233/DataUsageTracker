@@ -4,63 +4,12 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <LinearLayout
-        android:id="@+id/topBar"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="16dp"
-        android:background="#2a2a2a">
-
-        <ImageButton
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:contentDescription="Back"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="DataMosh Camera"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/white"
-            android:gravity="center"
-            android:paddingStart="16dp" />
-
-        <ImageButton
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:contentDescription="More"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground" />
-
-    </LinearLayout>
-
     <SurfaceView
         android:id="@+id/surfaceView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/topBar"
-        android:layout_above="@+id/controlsBar" />
-
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:text="⏹ Ready to record"
-        android:textSize="18sp"
-        android:textColor="@android:color/white"
-        android:gravity="center"
-        android:background="#80000000"
-        android:padding="16dp" />
+        android:layout_height="match_parent" />
 
     <LinearLayout
-        android:id="@+id/controlsBar"
         android:layout_width="match_parent"
         android:layout_height="80dp"
         android:layout_alignParentBottom="true"
@@ -69,28 +18,10 @@
         android:background="#2a2a2a">
 
         <ImageButton
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="Speed"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground"
-            android:layout_margin="8dp" />
-
-        <ImageButton
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="Focus"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground"
-            android:layout_margin="8dp" />
-
-        <ImageButton
             android:id="@+id/recordButton"
             android:layout_width="64dp"
             android:layout_height="64dp"
             android:contentDescription="Record"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground"
             android:layout_margin="8dp" />
 
         <ImageButton
@@ -98,17 +29,6 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="Delete"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground"
-            android:layout_margin="8dp" />
-
-        <ImageButton
-            android:id="@+id/galleryButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="Gallery"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground"
             android:layout_margin="8dp" />
 
         <ImageButton
@@ -116,10 +36,17 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="Save"
-            android:scaleType="centerInside"
-            android:background="?attr/selectableItemBackground"
             android:layout_margin="8dp" />
 
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:text="Ready"
+        android:textColor="@android:color/white"
+        android:gravity="center" />
 
 </RelativeLayout>
