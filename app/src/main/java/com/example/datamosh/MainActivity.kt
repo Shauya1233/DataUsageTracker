@@ -19,7 +19,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.PreviewCallback {
+class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private lateinit var recordButton: ImageButton
     private lateinit var deleteButton: ImageButton
@@ -27,13 +27,8 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
     private lateinit var statusText: TextView
     
     private var camera: Camera? = null
-    private var surfaceHolder: SurfaceHolder? = null
     private var isRecording = false
     private var videoFile: File? = null
-
-    companion object {
-        private const val CAMERA_PERMISSION_CODE = 101
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,25 +40,19 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
         saveButton = findViewById(R.id.saveButton)
         statusText = findViewById(R.id.statusText)
 
-        surfaceHolder = surfaceView.holder
-        surfaceHolder?.addCallback(this)
+        val holder = surfaceView.holder
+        holder.addCallback(this)
 
         recordButton.setOnClickListener { toggleRecording() }
         deleteButton.setOnClickListener { deleteRecording() }
         saveButton.setOnClickListener { saveRecording() }
 
         checkPermissions()
-        updateStatus()
     }
 
     private fun checkPermissions() {
-        val cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-        if (cameraPermission != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO),
-                CAMERA_PERMISSION_CODE
-            )
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 101)
         }
     }
 
@@ -77,45 +66,21 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
         }
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (holder.surface == null) return
-        try {
-            camera?.stopPreview()
-            camera?.setPreviewDisplay(holder)
-            camera?.startPreview()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Preview error", Toast.LENGTH_SHORT).show()
-        }
-    }
-
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        if (camera != null) {
-            camera?.stopPreview()
-            camera?.release()
-            camera = null
-        }
-    }
-
-    override fun onPreviewFrame(data: ByteArray?, camera: Camera?) {
-        if (data != null && camera != null) {
-            if (isRecording) {
-                // Recording logic here
-            }
-        }
+        camera?.release()
     }
 
     private fun toggleRecording() {
         isRecording = !isRecording
-        createVideoFile()
-        updateStatus()
-        Toast.makeText(this, if (isRecording) "Recording..." else "Stopped", Toast.LENGTH_SHORT).show()
+        statusText.text = if (isRecording) "🔴 Recording..." else "⏹ Ready"
     }
 
-    private fun createVideoFile(): File {
-        val storageDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-        } else {
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
-        }
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val videoFile = File(storageDir, "DATAMOSH_$timeStamp.mp4")
+    private fun deleteRecording() {
+        Toast.makeText(this, "Deleted", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun saveRecording() {
+        Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
+    }
+}
