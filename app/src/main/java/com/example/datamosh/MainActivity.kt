@@ -1,19 +1,18 @@
 package com.example.datamosh
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.SurfaceTexture
-import android.hardware.Camera
+import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.widget.Button
 import android.widget.ImageButton
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -22,27 +21,24 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.abs
 
-class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.PreviewCallback {
+class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private lateinit var recordButton: ImageButton
+    private lateinit var galleryButton: ImageButton
     private lateinit var deleteButton: ImageButton
     private lateinit var saveButton: ImageButton
-    private lateinit var statusText: TextView
+    private lateinit var statusText: android.widget.TextView
     
-    private var camera: Camera? = null
-    private var surfaceHolder: SurfaceHolder? = null
+    private var mediaRecorder: MediaRecorder? = null
     private var isRecording = false
-    private var prevFrame: ByteArray? = null
-    private var currentFrame: ByteArray? = null
     private var videoFile: File? = null
-    private var previewCanvas: Canvas? = null
-    private var previewBitmap: Bitmap? = null
+    private var surfaceHolder: SurfaceHolder? = null
 
     companion object {
         private const val CAMERA_PERMISSION_CODE = 101
         private const val STORAGE_PERMISSION_CODE = 102
+        private const val GALLERY_REQUEST_CODE = 103
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,14 +47,17 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
 
         surfaceView = findViewById(R.id.surfaceView)
         recordButton = findViewById(R.id.recordButton)
+        galleryButton = findViewById(R.id.galleryButton)
         deleteButton = findViewById(R.id.deleteButton)
         saveButton = findViewById(R.id.saveButton)
         statusText = findViewById(R.id.statusText)
 
         surfaceHolder = surfaceView.holder
         surfaceHolder?.addCallback(this)
+        surfaceHolder?.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS)
 
         recordButton.setOnClickListener { toggleRecording() }
+        galleryButton.setOnClickListener { openGallery() }
         deleteButton.setOnClickListener { deleteRecording() }
         saveButton.setOnClickListener { saveRecording() }
 
@@ -69,6 +68,11 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
     private fun checkPermissions() {
         val cameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
         val recordAudioPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+        val storagePermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
 
         if (cameraPermission != PackageManager.PERMISSION_GRANTED || 
             recordAudioPermission != PackageManager.PERMISSION_GRANTED) {
@@ -79,122 +83,64 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
             )
         }
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            val storagePermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            if (storagePermission != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                    STORAGE_PERMISSION_CODE
-                )
-            }
-        }
-    }
-
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        try {
-            camera = Camera.open(0)
-            camera?.setPreviewDisplay(holder)
-            camera?.setPreviewCallback(this)
-            camera?.startPreview()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (holder.surface == null) return
-        try {
-            camera?.stopPreview()
-            camera?.setPreviewDisplay(holder)
-            camera?.startPreview()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Preview error: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        if (camera != null) {
-            camera?.stopPreview()
-            camera?.release()
-            camera = null
-        }
-    }
-
-    override fun onPreviewFrame(data: ByteArray?, camera: Camera?) {
-        if (data == null || camera == null) return
-
-        currentFrame = data
-        
-        if (isRecording && prevFrame != null) {
-            // Apply datamoshing effect
-            applyDatamosh(data)
-        }
-
-        prevFrame = data.copyOf()
-        camera.addCallbackBuffer(data)
-    }
-
-    private fun applyDatamosh(frameData: ByteArray) {
-        Thread {
-            try {
-                val params = camera?.parameters ?: return@Thread
-                val previewSize = params.previewSize
-                val width = previewSize.width
-                val height = previewSize.height
-
-                // Simple datamoshing: blend frames based on motion
-                val result = ByteArray(frameData.size)
-                
-                for (i in frameData.indices step 4) {
-                    val curr = frameData.getOrNull(i)?.toInt() ?: 0
-                    val prev = prevFrame?.getOrNull(i)?.toInt() ?: 0
-                    
-                    // Calculate difference (motion detection)
-                    val diff = abs(curr - prev)
-                    
-                    // Blend: if high motion, keep previous frame (moshing effect)
-                    if (diff > 50) {
-                        result[i] = (prev * 0.7 + curr * 0.3).toInt().toByte()
-                    } else {
-                        result[i] = frameData[i]
-                    }
-                }
-
-                // Update preview with moshed frame
-                runOnUiThread {
-                    drawMoshedFrame(result, width, height)
-                }
-            } catch (e: Exception) {
-                // Silently handle errors
-            }
-        }.start()
-    }
-
-    private fun drawMoshedFrame(frameData: ByteArray, width: Int, height: Int) {
-        try {
-            if (previewBitmap == null) {
-                previewBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            }
-
-            previewBitmap?.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(frameData))
-            previewCanvas = surfaceHolder?.lockCanvas() ?: return
-            previewCanvas?.drawBitmap(previewBitmap!!, 0f, 0f, Paint())
-            surfaceHolder?.unlockCanvasAndPost(previewCanvas)
-        } catch (e: Exception) {
-            // Handle drawing errors silently
+        if (storagePermission != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                STORAGE_PERMISSION_CODE
+            )
         }
     }
 
     private fun toggleRecording() {
-        isRecording = !isRecording
-        updateStatus()
-        createVideoFile()
-        Toast.makeText(
-            this,
-            if (isRecording) "Recording started with datamoshing" else "Recording stopped",
-            Toast.LENGTH_SHORT
-        ).show()
+        if (!isRecording) {
+            startRecording()
+        } else {
+            stopRecording()
+        }
+    }
+
+    private fun startRecording() {
+        try {
+            createVideoFile()
+            
+            mediaRecorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setVideoSource(MediaRecorder.VideoSource.CAMERA)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                setVideoSize(1280, 720)
+                setVideoFrameRate(30)
+                setAudioSamplingRate(44100)
+                setAudioChannels(2)
+                setAudioEncodingBitRate(128000)
+                setVideoEncodingBitRate(5000000)
+                setOutputFile(videoFile?.absolutePath)
+                setPreviewDisplay(surfaceHolder?.surface)
+            }
+
+            mediaRecorder?.prepare()
+            mediaRecorder?.start()
+            isRecording = true
+            updateStatus()
+            Toast.makeText(this, "Recording started", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Recording error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopRecording() {
+        try {
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            mediaRecorder = null
+            isRecording = false
+            updateStatus()
+            Toast.makeText(this, "Recording stopped", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Stop error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun createVideoFile(): File {
@@ -205,9 +151,14 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
         }
 
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val videoFile = File(storageDir, "DATAMOSH_$timeStamp.mp4")
+        val videoFile = File(storageDir, "VID_$timeStamp.mp4")
         this.videoFile = videoFile
         return videoFile
+    }
+
+    private fun openGallery() {
+        val intent = android.content.Intent(android.content.Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+        startActivityForResult(intent, GALLERY_REQUEST_CODE)
     }
 
     private fun deleteRecording() {
@@ -223,6 +174,14 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
 
     private fun saveRecording() {
         if (videoFile != null && videoFile!!.exists()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, videoFile!!.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES)
+                }
+                contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            }
             Toast.makeText(this, "Video saved: ${videoFile!!.absolutePath}", Toast.LENGTH_LONG).show()
         } else {
             Toast.makeText(this, "No recording to save", Toast.LENGTH_SHORT).show()
@@ -231,18 +190,25 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
 
     private fun updateStatus() {
         statusText.text = if (isRecording) {
-            "🔴 Recording with Datamoshing..."
+            "🔴 Recording..."
+        } else if (videoFile != null && videoFile!!.exists()) {
+            "✅ Video ready to save"
         } else {
             "⏹ Ready to record"
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (camera != null) {
-            camera?.stopPreview()
-            camera?.release()
-            camera = null
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        // Surface created
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        // Surface changed
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        if (isRecording) {
+            stopRecording()
         }
     }
 
@@ -255,10 +221,31 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.Preview
         when (requestCode) {
             CAMERA_PERMISSION_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // Permission granted
+                    Toast.makeText(this, "Camera permission granted", Toast.LENGTH_SHORT).show()
+                }
+            }
+            STORAGE_PERMISSION_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Storage permission granted", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
-}
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == GALLERY_REQUEST_CODE && resultCode == RESULT_OK) {
+            val selectedVideo = data?.data
+            if (selectedVideo != null) {
+                Toast.makeText(this, "Video selected: $selectedVideo", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isRecording) {
+            stopRecording()
+        }
+    }
+}
